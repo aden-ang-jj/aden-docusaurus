@@ -288,3 +288,94 @@ Master Process (PID 9001)
 | Workers | Yes | Yes (master replaces them) |
 
 **Why this matters for NGINX:** When you start NGINX, you're starting a family of processes — one master that manages everything, and multiple workers that handle the actual traffic. This design gives NGINX its reliability and zero-downtime reloads.
+
+---
+
+## 4. What a Web Server Does
+
+A web server has one job: **listen on a port, receive HTTP requests, send back responses.**
+
+### Two Types of Serving
+
+**Static serving** — return files directly from disk. No code runs, just file lookup.
+
+```
+Request: GET /logo.png
+Server:  finds /var/www/logo.png on disk → sends it back
+```
+
+**Dynamic serving** — run code to generate the response. This is what Flask/Express does.
+
+```
+Request: GET /api/users
+Server:  runs Python code → queries database → builds JSON → sends it back
+```
+
+### NGINX vs Flask/Express
+
+Both are web servers, but they're good at different things:
+
+| | NGINX | Flask/Express |
+|---|---|---|
+| Serve static files (images, CSS, JS) | Extremely fast | Slow in comparison |
+| Handle thousands of connections | Built for it (event loop) | Struggles |
+| Run your business logic | Cannot | This is its job |
+
+### Where Does NGINX Get Static Files?
+
+From a folder on the server's disk that you configure:
+
+```
+Server filesystem:
+/var/www/mysite/
+  ├── index.html
+  ├── style.css
+  ├── logo.png
+  └── images/
+       └── banner.jpg
+```
+
+In the NGINX config, you point it at that folder:
+
+```nginx
+location / {
+    root /var/www/mysite;
+}
+```
+
+When a request comes in for `GET /logo.png`, NGINX looks up `/var/www/mysite/logo.png` on disk and sends it back. No magic — just reading files from a configured folder.
+
+### What NGINX Handles vs What It Forwards
+
+| NGINX handles directly | Forwards to your app |
+|---|---|
+| Serve static files (HTML, CSS, JS, images) | API requests that need business logic |
+| TLS/HTTPS encryption and decryption | Database queries |
+| Reject bad requests (too large, wrong method) | Authentication logic |
+| Rate limiting (block excessive requests) | Anything requiring your application code |
+| Compression (gzip responses before sending) | |
+| Caching (remember a response and reuse it) | |
+
+The key distinction: **if it requires your application code to generate a response, it goes to your app. If NGINX can answer without your code, it handles it itself.**
+
+### Why This Is Better Than Flask Doing Everything
+
+```
+Flask serving an image:
+  request → Python interpreter → Flask framework → route matching → file read → response
+
+NGINX serving an image:
+  request → file read → response
+```
+
+Less overhead means faster responses. It also frees up your app to focus on requests that actually need business logic.
+
+### NGINX Can Work Alone
+
+For a purely static site (documentation, landing pages, blogs, SPAs), you don't need a backend at all. NGINX serves files directly:
+
+```
+Browser ──► NGINX ──► reads files from disk ──► responds
+```
+
+**Why this matters for NGINX:** Understanding this split — what NGINX handles vs what your app handles — is the foundation of every NGINX config you'll ever write. You're essentially defining rules for "serve this yourself" vs "forward this to my app."
