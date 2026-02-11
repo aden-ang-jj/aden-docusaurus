@@ -1,3 +1,13 @@
+aden:
+  name: Aden Ang
+  title: Full-Stack Software Engineer
+  url: https://www.linkedin.com/in/junjie2912/
+  image_url: https://github.com/aden-ang-jj.png
+  page: true
+  socials:
+    linkedin: junjie2912
+    github: aden-ang-jj
+
 yangshun:
   name: Yangshun Tay
   title: Ex-Meta Staff Engineer, Co-founder GreatFrontEnd
