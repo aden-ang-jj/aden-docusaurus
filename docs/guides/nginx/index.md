@@ -23,7 +23,7 @@ NGINX is a **reverse proxy and web server** that sits between the internet and y
 ## What's Next?
 
 - [Prerequisites](./prerequisites.md) — Networking and OS fundamentals you need before learning NGINX
-- [Architecture](./architecture.md) — How NGINX works under the hood (master/worker, event loop)
-- Configuration *(coming soon)*
-- Reverse Proxy *(coming soon)*
-- Production Patterns *(coming soon)*
+- [Configuration Basics](./configuration.md) — Config structure, directive inheritance, and serving your first static site
+- [Reverse Proxy](./reverse-proxy.md) — Forwarding requests to backend services with `proxy_pass`
+- [Load Balancing](./load-balancing.md) — Distributing traffic across multiple backends
+- [Production Patterns](./production-patterns.md) — Gzip, rate limiting, security headers, TLS, and caching
