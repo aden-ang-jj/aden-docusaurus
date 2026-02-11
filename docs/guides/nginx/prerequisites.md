@@ -78,9 +78,56 @@ Common status codes you'll see:
 - **404** — Not Found
 - **500** — Internal Server Error
 
+### How Does the Browser Know the Port?
+
+A TCP connection **always** requires a specific port. But the URL often doesn't include one. The browser fills it in from the protocol:
+
+```
+Step 1: Browser parses the URL
+  protocol = https
+  domain   = example.com
+  path     = /dashboard
+  port     = not specified
+
+Step 2: DNS resolves example.com → 93.184.216.34
+
+Step 2.5: Browser fills in the port from the protocol
+  https → 443
+  http  → 80
+
+Step 3: TCP handshake to 93.184.216.34:443
+```
+
+The port is either **explicit** (you typed it) or **implicit** (derived from the protocol):
+
+```
+Explicit:   http://example.com:3000/api   → port 3000
+Implicit:   http://example.com/api        → port 80 (from http)
+Implicit:   https://example.com/api       → port 443 (from https)
+```
+
+You can never have a TCP connection without a port. The browser just figures it out for you.
+
 ### Step 6: Connection Reuse (Keep-Alive)
 
-Opening a TCP connection has overhead (~150ms for the handshake). If the browser needs to make more requests (CSS files, images, API calls), it can **reuse** the same connection instead of opening a new one. This is called **keep-alive**.
+Opening a TCP connection costs **time (latency)**, not bandwidth. Remember the handshake takes multiple round trips:
+
+```
+Each new connection:
+  Your computer → Server:  SYN         (trip 1)
+  Server → Your computer:  SYN-ACK     (trip 2)
+  Your computer → Server:  ACK         (trip 3)
+  NOW you can send the request          (trip 4)
+
+With keep-alive (reusing connection):
+  Just send the request                 (trip 1)
+```
+
+Each trip across the internet takes time (say 50ms). A new connection adds ~150ms of overhead **before any data is exchanged**. For 3 extra files, that's 450ms wasted just on handshakes.
+
+With **keep-alive**, you do the handshake once and send all requests over the same open connection.
+
+> **Note on bandwidth:** Bandwidth is how much data you can send at once — think of it as the width of a pipe. A wider pipe pushes more water per second. Keep-alive saves latency (time per trip), not bandwidth.
 
 ### The Full Picture
 
@@ -133,23 +180,42 @@ Port       = the room number    (which program on that machine)
 
 When you type `https://example.com`, the browser silently adds port 443. The URL is really `https://example.com:443`.
 
-### Privileged vs Non-Privileged Ports
+### Reserved vs Privileged Ports
+
+These two terms overlap but mean different things:
 
 ```
-Ports 0-1023:     Privileged — require root access to bind to
-Ports 1024-65535: Non-privileged — any program can bind to these
+Reserved    = ports with agreed-upon purposes (conventions)
+              Port 80 is reserved for HTTP, port 443 for HTTPS
+
+Privileged  = ports 0-1023 that require root/admin access to bind to
+              This is an OS-level restriction
+
+Non-privileged = ports 1024-65535, any program can bind to these
 ```
 
-This is why your dev server uses `localhost:3000` or `localhost:5000` — no root needed. In production, **NGINX binds to port 80/443** (it starts as root for this), then forwards traffic to your app on a non-privileged port.
+Port 80 is both reserved (convention: HTTP) **and** privileged (needs root). Port 3000 is neither — any program can bind to it, and it has no special meaning.
+
+### Why Your App Can't Just Listen on Port 80
+
+**Reason 1: Privilege.** Ports below 1024 require root. Running your Flask app as root is a security risk — if someone hacks your app, they have full control of the server. NGINX handles this safely: the master process starts as root to grab the port, then the workers **drop down to an unprivileged user**.
+
+**Reason 2: Your app isn't built for it.** Flask/Express are good at business logic but bad at handling thousands of connections, serving static files efficiently, terminating TLS, and recovering from crashes gracefully. NGINX is purpose-built for all of that.
+
+This is why your dev server uses `localhost:3000` or `localhost:5000` — no root needed. In production, **NGINX binds to port 80/443** and forwards traffic to your app on a non-privileged port.
 
 ### The Port Is Part of the TCP Connection
 
-The browser determines the port **before** the TCP handshake — either from the URL explicitly (`http://example.com:3000`) or implicitly from the protocol (`https://` → 443). The OS uses the port in the TCP connection to route traffic to the correct program.
+A common misconception is that the OS reads the HTTP request headers to decide which program gets the traffic. It doesn't — routing happens at the **TCP level**, before any HTTP is sent.
+
+The port is specified when the browser opens the TCP connection (step 3 of the request lifecycle). The OS uses this port to deliver the connection to the correct program:
 
 ```
 Browser connects to 93.184.216.34:5000  → OS delivers to Flask
 Browser connects to 93.184.216.34:3000  → OS delivers to Node
 ```
+
+Think back to the building analogy — you decide which room to walk into **before** you start talking. You don't enter a random room and ask "am I in the right place?"
 
 ### Development vs Production
 
@@ -379,3 +445,120 @@ Browser ──► NGINX ──► reads files from disk ──► responds
 ```
 
 **Why this matters for NGINX:** Understanding this split — what NGINX handles vs what your app handles — is the foundation of every NGINX config you'll ever write. You're essentially defining rules for "serve this yourself" vs "forward this to my app."
+
+---
+
+## 5. What a Reverse Proxy Is
+
+A **proxy** is a middleman between two parties in a network. There are two types:
+
+### Forward Proxy vs Reverse Proxy
+
+**Forward proxy** — sits in front of the **client**, acts on behalf of the client:
+
+```
+You ──► Forward Proxy ──► Internet
+```
+
+Example: a company network proxy that fetches websites for employees. The server sees the proxy's IP, not yours. The forward proxy **hides the client**.
+
+**Reverse proxy** — sits in front of the **server**, acts on behalf of the server:
+
+```
+Internet ──► Reverse Proxy ──► Your App
+```
+
+Example: NGINX in production. Users hit `myapp.com`, NGINX receives the request and forwards it to Flask. Users have no idea Flask exists. The reverse proxy **hides the server**.
+
+### Why Use a Reverse Proxy?
+
+**1. Security** — Your app is never exposed to the internet directly.
+
+```
+Without reverse proxy:
+  Internet ──► Flask (port 5000 open to the world, attackable)
+
+With reverse proxy:
+  Internet ──► NGINX (port 443) ──► Flask (port 5000, only accessible locally)
+```
+
+Only port 443 is open. Even if someone knows Flask runs on port 5000, they can't reach it from outside.
+
+**2. Single entry point** — Multiple services behind one domain.
+
+Without NGINX, users would have to type port numbers manually:
+
+```
+Without NGINX (ugly, insecure):
+  myapp.com:5000/api/users    → Flask
+  myapp.com:3000/admin        → Admin service
+  myapp.com:8080/docs         → Docusaurus
+
+  Every port is open to the internet = more attack surface.
+  Users have to remember port numbers = bad experience.
+
+With NGINX (clean, secure):
+  myapp.com/api/*        → NGINX forwards to Flask (port 5000)
+  myapp.com/admin/*      → NGINX forwards to Admin service (port 3000)
+  myapp.com/docs/*       → NGINX forwards to Docusaurus (port 8080)
+  myapp.com/*            → NGINX serves static files from disk
+
+  Only port 443 is open. One domain, no port numbers.
+```
+
+Users just see `myapp.com`. They don't know there are three separate services behind it.
+
+**3. TLS termination** — NGINX handles HTTPS encryption so your app doesn't have to.
+
+TLS (Transport Layer Security) is the encryption that makes HTTPS secure. When you see the lock icon in your browser's address bar, TLS is active.
+
+```
+Without TLS (HTTP):
+  Browser sends: {"password": "hunter123"}
+  Anyone snooping on the network sees: {"password": "hunter123"}
+
+With TLS (HTTPS):
+  Browser sends: {"password": "hunter123"}
+  Anyone snooping sees: x8Kj2#mP9...qR4nL (encrypted gibberish)
+```
+
+**"TLS termination"** means NGINX is where the encrypted connection **ends** — like a secure courier delivering a locked box to the front desk. NGINX (the front desk) unlocks the box, reads the contents, and passes the plain message to the right office (Flask). The secure courier's job **terminates** at the front desk.
+
+```
+Browser ── ENCRYPTED (TLS) ──► NGINX ── PLAIN HTTP ──► Flask
+                                  ▲
+                         encryption ends here
+                         (TLS is "terminated")
+```
+
+From NGINX to Flask, the traffic is plain HTTP — no encryption needed because it's all on the same machine (`localhost`).
+
+Without NGINX, every service needs its own TLS setup:
+
+```
+With NGINX (TLS once):
+  Browser ── ENCRYPTED ──► NGINX ── plain ──► Flask (port 5000)
+                                 ── plain ──► Admin (port 3000)
+                                 ── plain ──► Docs  (port 8080)
+
+  Only NGINX needs a TLS certificate.
+
+Without NGINX (TLS everywhere):
+  Browser ── ENCRYPTED ──► Flask (port 5000, needs its own TLS certificate)
+  Browser ── ENCRYPTED ──► Admin (port 3000, needs its own TLS certificate)
+  Browser ── ENCRYPTED ──► Docs  (port 8080, needs its own TLS certificate)
+
+  3x the setup, 3x the maintenance, 3x the things that can go wrong.
+```
+
+**4. Load balancing** — Distribute traffic across multiple copies of your app.
+
+```
+                         ┌──► Flask copy 1 (port 5001)
+Browser ──► NGINX ───────┼──► Flask copy 2 (port 5002)
+                         └──► Flask copy 3 (port 5003)
+```
+
+If one copy crashes or gets overloaded, NGINX sends traffic to the others.
+
+**Why this matters for NGINX:** The reverse proxy is NGINX's primary role in most production deployments. Almost everything you configure in NGINX — routing, TLS, load balancing, caching — is a feature of its reverse proxy capabilities.
