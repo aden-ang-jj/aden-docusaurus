@@ -91,7 +91,25 @@ This creates a merge migration that joins the two branches, similar to a Git mer
 
 </details>
 
-## Q5: A buggy migration has already been applied to the production database. What should you do?
+## Q5: Your database already has tables created by `Base.metadata.create_all()`. You just set up Alembic and ran `alembic revision --autogenerate -m "initial"`. What should you do next?
+
+| Option | |
+|---|---|
+| A | `alembic upgrade head` |
+| B | `alembic stamp head` |
+| C | `alembic downgrade base` then `alembic upgrade head` |
+| D | Delete the migration and start over |
+
+<details>
+<summary>Answer</summary>
+
+**B** — `alembic stamp head`
+
+The migration script contains `CREATE TABLE` statements for tables that already exist. Running `upgrade head` would fail with "table already exists". `stamp head` records the migration as applied in `alembic_version` without executing it — telling Alembic "the database is already at this state." Future migrations will then work normally.
+
+</details>
+
+## Q6: A buggy migration has already been applied to the production database. What should you do?
 
 | Option | |
 |---|---|

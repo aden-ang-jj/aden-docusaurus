@@ -66,6 +66,7 @@ Database (migrations applied via upgrade/downgrade)
 | `alembic.ini` | Config file (database URL, logging, etc.) |
 | `alembic/env.py` | Tells Alembic about your models so it can auto-detect changes |
 | `alembic/versions/` | Folder where migration scripts live (one file per migration) |
+| `alembic/script.py.mako` | Template used to generate new migration files |
 
 ## What's Next?
 
