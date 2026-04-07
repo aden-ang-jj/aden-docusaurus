@@ -1,12 +1,17 @@
-# Hi, I’m Aden 👋
+# Hi, I'm Aden 👋
 
-Welcome to my personal portfolio app.
+This is my personal documentation site built with [Docusaurus](https://docusaurus.io/). It's where I write and publish technical guides on tools and technologies I work with.
 
-This project is where I showcase my work, skills, and experiments as a developer. It highlights projects I’ve built, technologies I enjoy working with, and a bit about how I approach building software.
+## 📚 Guides
 
-## 🚀 What’s Inside
-- A curated selection of projects
-- Information about my skills and experience
-- A clean, responsive UI focused on clarity and usability
-- Built with performance and maintainability in mind
+- **Nginx** — web server setup, reverse proxy configuration, and production patterns
+- **Alembic** — database migration management
+- **uv** — Python package and project manager
+- **Async Programming** — core concepts, use cases, and FAQ
+- **Langfuse** — LLM observability and tracing
 
+## 🛠 Built With
+
+- [Docusaurus](https://docusaurus.io/) — static site generator
+- TypeScript
+- Nginx (for serving in production)
